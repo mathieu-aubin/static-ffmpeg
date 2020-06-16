@@ -29,7 +29,8 @@ libzimg,
 libsoxr,
 libopenjpeg,
 libdav1d,
-libxvid
+libxvid,
+rav1e
 and all default native ffmpeg codecs.
 
 ### Usage
@@ -74,7 +75,6 @@ the FFmpeg project or to other projects used by this image if you find it useful
 ### TODOs and possible things to add
 
 * Add [vmaf](https://github.com/Netflix/vmaf) support
-* Add [rav1e](https://github.com/xiph/rav1e) support when in stable
 * Add acceleration support (GPU, CUDA, ...)
 * Add qt-faststart
 * Add *.a *.so libraries, headers and pkg-config somehow

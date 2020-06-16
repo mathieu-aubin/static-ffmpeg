@@ -86,6 +86,10 @@ ARG LIBDAV1D_SHA256=c189e9fa585cf9a722fa9f57cf6b5332849449bdb4153f7782d9d7852a14
 ARG LIBXVID_VERSION=1.3.7
 ARG LIBXVID_URL="https://downloads.xvid.com/downloads/xvidcore-$LIBXVID_VERSION.tar.gz"
 ARG LIBXVID_SHA256=abbdcbd39555691dd1c9b4d08f0a031376a3b211652c0d8b3b8aa9be1303ce2d
+# bump: rav1e /RAV1E_VERSION=([\d.]+)/ https://github.com/xiph/rav1e.git|^0
+ARG RAV1E_VERSION=0.3.2
+ARG RAV1E_URL="https://github.com/xiph/rav1e/archive/v$RAV1E_VERSION.tar.gz"
+ARG RAV1E_SHA256=e61fdce698ac25f19e25543efea076891296a74f53e3f8480665563ae2d5ff60
 
 # -O3 makes sure we compile with optimization. setting CFLAGS/CXXFLAGS seems to override
 # default automake cflags.
@@ -98,6 +102,7 @@ ARG LDFLAGS="-Wl,-z,relro,-z,now"
 
 RUN apk add --no-cache \
   coreutils \
+  musl-dev \
   openssl \
   openssl-dev \
   openssl-libs-static \
@@ -115,6 +120,8 @@ RUN apk add --no-cache \
   git \
   yasm \
   nasm \
+  rust \
+  cargo \
   texinfo \
   jq \
   zlib \
@@ -193,133 +200,168 @@ RUN \
   libopenjpeg: env.OPENJPEG_VERSION, \
   libdav1d: env.LIBDAV1D_VERSION, \
   libxvid: env.LIBXVID_VERSION, \
+  rav1e: env.RAV1E_VERSION, \
   }' > /versions.json
 
+# TODO: install as package when available
+RUN cargo install cargo-c
 RUN \
-  wget -O lame.tar.gz "$MP3LAME_URL" && \
-  echo "$MP3LAME_SHA256  lame.tar.gz" | sha256sum --status -c - && \
-  tar xfz lame.tar.gz && \
-  cd lame-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
+  wget -O rav1e.tar.gz "$RAV1E_URL" && \
+  echo "$RAV1E_SHA256  rav1e.tar.gz" | sha256sum --status -c - && \
+  tar xfz rav1e.tar.gz && \
+  cd rav1e-* && \
+  RUSTFLAGS="-C target-feature=-crt-static -C link-args=-static" cinstall --release
 
-RUN \
-  wget -O fdk-aac.tar.gz "$FDK_AAC_URL" && \
-  echo "$FDK_AAC_SHA256  fdk-aac.tar.gz" | sha256sum --status -c - && \
-  tar xfz fdk-aac.tar.gz && \
-  cd fdk-aac-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O lame.tar.gz "$MP3LAME_URL" && \
+#   echo "$MP3LAME_SHA256  lame.tar.gz" | sha256sum --status -c - && \
+#   tar xfz lame.tar.gz && \
+#   cd lame-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O libogg.tar.gz "$OGG_URL" && \
-  echo "$OGG_SHA256  libogg.tar.gz" | sha256sum --status -c - && \
-  tar xfz libogg.tar.gz && \
-  cd libogg-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O fdk-aac.tar.gz "$FDK_AAC_URL" && \
+#   echo "$FDK_AAC_SHA256  fdk-aac.tar.gz" | sha256sum --status -c - && \
+#   tar xfz fdk-aac.tar.gz && \
+#   cd fdk-aac-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-# require libogg to build
-RUN \
-  wget -O libvorbis.tar.gz "$VORBIS_URL" && \
-  echo "$VORBIS_SHA256  libvorbis.tar.gz" | sha256sum --status -c - && \
-  tar xfz libvorbis.tar.gz && \
-  cd libvorbis-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O libogg.tar.gz "$OGG_URL" && \
+#   echo "$OGG_SHA256  libogg.tar.gz" | sha256sum --status -c - && \
+#   tar xfz libogg.tar.gz && \
+#   cd libogg-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O opus.tar.gz "$OPUS_URL" && \
-  echo "$OPUS_SHA256  opus.tar.gz" | sha256sum --status -c - && \
-  tar xfz opus.tar.gz && \
-  cd opus-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# # require libogg to build
+# RUN \
+#   wget -O libvorbis.tar.gz "$VORBIS_URL" && \
+#   echo "$VORBIS_SHA256  libvorbis.tar.gz" | sha256sum --status -c - && \
+#   tar xfz libvorbis.tar.gz && \
+#   cd libvorbis-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O libtheora.tar.gz "$THEORA_URL" && \
-  echo "$THEORA_SHA256  libtheora.tar.gz" | sha256sum --status -c - && \
-  tar xfj libtheora.tar.gz && \
-  cd libtheora-* && ./configure --disable-examples --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O opus.tar.gz "$OPUS_URL" && \
+#   echo "$OPUS_SHA256  opus.tar.gz" | sha256sum --status -c - && \
+#   tar xfz opus.tar.gz && \
+#   cd opus-* && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O libvpx.tar.gz "$VPX_URL" && \
-  echo "$VPX_SHA256  libvpx.tar.gz" | sha256sum --status -c - && \
-  tar xfz libvpx.tar.gz && \
-  cd libvpx-* && ./configure --enable-static --disable-shared --disable-unit-tests --disable-examples && make -j$(nproc) install
+# RUN \
+#   wget -O libtheora.tar.gz "$THEORA_URL" && \
+#   echo "$THEORA_SHA256  libtheora.tar.gz" | sha256sum --status -c - && \
+#   tar xfj libtheora.tar.gz && \
+#   cd libtheora-* && ./configure --disable-examples --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  git clone "$X264_URL" && \
-  cd x264 && \
-  git checkout $X264_VERSION && \
-  ./configure --enable-pic --enable-static && make -j$(nproc) install
+# RUN \
+#   wget -O libvpx.tar.gz "$VPX_URL" && \
+#   echo "$VPX_SHA256  libvpx.tar.gz" | sha256sum --status -c - && \
+#   tar xfz libvpx.tar.gz && \
+#   cd libvpx-* && ./configure --enable-static --disable-shared --disable-unit-tests --disable-examples && make -j$(nproc) install
 
-RUN \
-  wget -O x265.tar.gz "$X265_URL" && \
-  echo "$X265_SHA256  x265.tar.gz" | sha256sum --status -c - && \
-  tar xfz x265.tar.gz && \
-  cd x265_*/build/linux && \
-  cmake -G "Unix Makefiles" -DENABLE_SHARED=OFF -DENABLE_AGGRESSIVE_CHECKS=ON ../../source && \
-  make -j$(nproc) install
+# RUN \
+#   git clone "$X264_URL" && \
+#   cd x264 && \
+#   git checkout $X264_VERSION && \
+#   ./configure --enable-pic --enable-static && make -j$(nproc) install
 
-RUN \
-  wget -O libwebp.tar.gz "$WEBP_URL" && \
-  echo "$WEBP_SHA256  libwebp.tar.gz" | sha256sum --status -c - && \
-  tar xfz libwebp.tar.gz && \
-  cd libwebp-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O x265.tar.gz "$X265_URL" && \
+#   echo "$X265_SHA256  x265.tar.gz" | sha256sum --status -c - && \
+#   tar xfz x265.tar.gz && \
+#   cd x265_*/build/linux && \
+#   cmake -G "Unix Makefiles" -DENABLE_SHARED=OFF -DENABLE_AGGRESSIVE_CHECKS=ON ../../source && \
+#   make -j$(nproc) install
 
-RUN \
-  wget -O wavpack.tar.gz "$WAVPACK_URL" && \
-  echo "$WAVPACK_SHA256  wavpack.tar.gz" | sha256sum --status -c - && \
-  tar xfz wavpack.tar.gz && \
-  cd WavPack-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O libwebp.tar.gz "$WEBP_URL" && \
+#   echo "$WEBP_SHA256  libwebp.tar.gz" | sha256sum --status -c - && \
+#   tar xfz libwebp.tar.gz && \
+#   cd libwebp-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O speex.tar.gz "$SPEEX_URL" && \
-  echo "$SPEEX_SHA256  speex.tar.gz" | sha256sum --status -c - && \
-  tar xfz speex.tar.gz && \
-  cd speex-Speex-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O wavpack.tar.gz "$WAVPACK_URL" && \
+#   echo "$WAVPACK_SHA256  wavpack.tar.gz" | sha256sum --status -c - && \
+#   tar xfz wavpack.tar.gz && \
+#   cd WavPack-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  git clone --depth 1 --branch v$AOM_VERSION "$AOM_URL" && \
-  cd aom && test $(git rev-parse HEAD) = $AOM_COMMIT && \
-  mkdir build_tmp && cd build_tmp && cmake -DENABLE_SHARED=OFF -DENABLE_TESTS=0 .. && make -j$(nproc) install
+# RUN \
+#   wget -O speex.tar.gz "$SPEEX_URL" && \
+#   echo "$SPEEX_SHA256  speex.tar.gz" | sha256sum --status -c - && \
+#   tar xfz speex.tar.gz && \
+#   cd speex-Speex-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O vid.stab.tar.gz "$VIDSTAB_URL" && \
-  echo "$VIDSTAB_SHA256  vid.stab.tar.gz" | sha256sum --status -c - && \
-  tar xfz vid.stab.tar.gz && \
-  cd vid.stab-* && cmake -DBUILD_SHARED_LIBS=OFF . && make -j$(nproc) install
+# RUN \
+#   git clone --depth 1 --branch v$AOM_VERSION "$AOM_URL" && \
+#   cd aom && test $(git rev-parse HEAD) = $AOM_COMMIT && \
+#   mkdir build_tmp && cd build_tmp && cmake -DENABLE_SHARED=OFF -DENABLE_TESTS=0 .. && make -j$(nproc) install
 
-RUN \
-  wget -O kvazaar.tar.gz "$KVAZAAR_URL" && \
-  echo "$KVAZAAR_SHA256  kvazaar.tar.gz" | sha256sum --status -c - && \
-  tar xfz kvazaar.tar.gz && \
-  cd kvazaar-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O vid.stab.tar.gz "$VIDSTAB_URL" && \
+#   echo "$VIDSTAB_SHA256  vid.stab.tar.gz" | sha256sum --status -c - && \
+#   tar xfz vid.stab.tar.gz && \
+#   cd vid.stab-* && cmake -DBUILD_SHARED_LIBS=OFF . && make -j$(nproc) install
 
-RUN \
-  wget -O libass.tar.gz "$ASS_URL" && \
-  echo "$ASS_SHA256  libass.tar.gz" | sha256sum --status -c - && \
-  tar xfz libass.tar.gz && \
-  cd libass-* && ./configure --enable-static --disable-shared && make -j$(nproc) && make install
+# RUN \
+#   wget -O kvazaar.tar.gz "$KVAZAAR_URL" && \
+#   echo "$KVAZAAR_SHA256  kvazaar.tar.gz" | sha256sum --status -c - && \
+#   tar xfz kvazaar.tar.gz && \
+#   cd kvazaar-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O zimg.tar.gz "$ZIMG_URL" && \
-  echo "$ZIMG_SHA256  zimg.tar.gz" | sha256sum --status -c - && \
-  tar xfz zimg.tar.gz && \
-  cd zimg-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
+# RUN \
+#   wget -O libass.tar.gz "$ASS_URL" && \
+#   echo "$ASS_SHA256  libass.tar.gz" | sha256sum --status -c - && \
+#   tar xfz libass.tar.gz && \
+#   cd libass-* && ./configure --enable-static --disable-shared && make -j$(nproc) && make install
 
-RUN \
-  wget -O openjpeg.tar.gz "$OPENJPEG_URL" && \
-  echo "$OPENJPEG_SHA256  openjpeg.tar.gz" | sha256sum --status -c - && \
-  tar xfz openjpeg.tar.gz && \
-  cd openjpeg-* && cmake -G "Unix Makefiles" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF && make -j$(nproc) install
+# RUN \
+#   wget -O zimg.tar.gz "$ZIMG_URL" && \
+#   echo "$ZIMG_SHA256  zimg.tar.gz" | sha256sum --status -c - && \
+#   tar xfz zimg.tar.gz && \
+#   cd zimg-* && ./autogen.sh && ./configure --enable-static --disable-shared && make -j$(nproc) install
 
-RUN \
-  wget -O dav1d.tar.gz "$LIBDAV1D_URL" && \
-  echo "$LIBDAV1D_SHA256  dav1d.tar.gz" | sha256sum --status -c - && \
-  tar xfz dav1d.tar.gz && \
-  cd dav1d-* && meson build --buildtype release -Ddefault_library=static && ninja -C build install
+# RUN \
+#   wget -O openjpeg.tar.gz "$OPENJPEG_URL" && \
+#   echo "$OPENJPEG_SHA256  openjpeg.tar.gz" | sha256sum --status -c - && \
+#   tar xfz openjpeg.tar.gz && \
+#   cd openjpeg-* && cmake -G "Unix Makefiles" -DBUILD_SHARED_LIBS=OFF -DBUILD_TESTS=OFF && make -j$(nproc) install
 
-# add extra CFLAGS that are not enabled by -O3
-# http://websvn.xvid.org/cvs/viewvc.cgi/trunk/xvidcore/build/generic/configure.in?revision=2146&view=markup
-RUN \
-  wget -O libxvid.tar.gz "$LIBXVID_URL" && \
-  echo "$LIBXVID_SHA256  libxvid.tar.gz" | sha256sum --status -c - && \
-  tar xfz libxvid.tar.gz && \
-  cd xvidcore/build/generic && \
-  CFLAGS="$CLFAGS -fstrength-reduce -ffast-math" \
-  ./configure && make -j$(nproc) && make install
+# RUN \
+#   wget -O dav1d.tar.gz "$LIBDAV1D_URL" && \
+#   echo "$LIBDAV1D_SHA256  dav1d.tar.gz" | sha256sum --status -c - && \
+#   tar xfz dav1d.tar.gz && \
+#   cd dav1d-* && meson build --buildtype release -Ddefault_library=static && ninja -C build install
+
+# # add extra CFLAGS that are not enabled by -O3
+# # http://websvn.xvid.org/cvs/viewvc.cgi/trunk/xvidcore/build/generic/configure.in?revision=2146&view=markup
+# RUN \
+#   wget -O libxvid.tar.gz "$LIBXVID_URL" && \
+#   echo "$LIBXVID_SHA256  libxvid.tar.gz" | sha256sum --status -c - && \
+#   tar xfz libxvid.tar.gz && \
+#   cd xvidcore/build/generic && \
+#   CFLAGS="$CLFAGS -fstrength-reduce -ffast-math" \
+#   ./configure && make -j$(nproc) && make install
+
+
+  # --enable-libmp3lame \
+  # --enable-libfdk-aac \
+  # --enable-libvorbis \
+  # --enable-libopus \
+  # --enable-libtheora \
+  # --enable-libvpx \
+  # --enable-libx264 \
+  # --enable-libx265 \
+  # --enable-libwebp \
+  # --enable-libwavpack \
+  # --enable-libspeex \
+  # --enable-libaom \
+  # --enable-libvidstab \
+  # --enable-libkvazaar \
+  # --enable-libfreetype \
+  # --enable-fontconfig \
+  # --enable-libfribidi \
+  # --enable-libass \
+  # --enable-libzimg \
+  # --enable-libsoxr \
+  # --enable-libopenjpeg \
+  # --enable-libdav1d \
+  # --enable-libxvid \
 
 # aom cmake seems to install aom.pc here
 ARG PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig
@@ -342,29 +384,7 @@ RUN \
   --enable-openssl \
   --enable-iconv \
   --enable-libxml2 \
-  --enable-libmp3lame \
-  --enable-libfdk-aac \
-  --enable-libvorbis \
-  --enable-libopus \
-  --enable-libtheora \
-  --enable-libvpx \
-  --enable-libx264 \
-  --enable-libx265 \
-  --enable-libwebp \
-  --enable-libwavpack \
-  --enable-libspeex \
-  --enable-libaom \
-  --enable-libvidstab \
-  --enable-libkvazaar \
-  --enable-libfreetype \
-  --enable-fontconfig \
-  --enable-libfribidi \
-  --enable-libass \
-  --enable-libzimg \
-  --enable-libsoxr \
-  --enable-libopenjpeg \
-  --enable-libdav1d \
-  --enable-libxvid \
+  --enable-librav1e \
   || (cat ffbuild/config.log ; false) \
   && make -j$(nproc) install
 
